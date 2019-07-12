@@ -2,9 +2,13 @@ variable "name" {
   description = "Global name of this project"
 }
 
+variable "region" {
+  description = "AWS region"
+}
+
 provider "aws" {
     version = "~> 2.0"
-    region = "eu-central-1"
+    region = "${var.region}"
 }
 
 resource "aws_ecr_repository" "api-ecr" {
@@ -27,14 +31,59 @@ data "aws_ami" "api_ec2" {
   owners = ["amazon"] # Canonical
 }
 
-resource "aws_instance" "web" {
-  ami = "${data.aws_ami.api_ec2.id}"
+resource "aws_launch_template" "api_instance_template" {
+  image_id = "${data.aws_ami.api_ec2.id}"
+  name_prefix   = "${var.name}"
   instance_type = "t3.nano"
-  user_data = "${data.template_file.user_data.rendered}"
-  iam_instance_profile = "${aws_iam_instance_profile.ecs_instance_profile.id}"
+  user_data = "${base64encode(data.template_file.user_data.rendered)}"
+  monitoring {
+    enabled = true
+  }
+  
+  iam_instance_profile {
+    name = "${aws_iam_instance_profile.ecs_instance_profile.name}"
+  }
 
-  tags = {
-    Name = "${var.name}"
+  credit_specification {
+    cpu_credits = "standard"
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name = "${var.name}"
+    }
+  }
+}
+
+resource "aws_placement_group" "cluster_placement_group" {
+  name = "${var.name}"
+  strategy = "cluster"
+}
+
+resource "aws_autoscaling_group" "cluster_autoscale_group" {
+  name_prefix = "${var.name}"
+  min_size = 1
+  max_size = 3
+  desired_capacity = 1
+  placement_group = "${aws_placement_group.cluster_placement_group.id}"
+  availability_zones = ["eu-central-1c"]
+  launch_template {
+    id = "${aws_launch_template.api_instance_template.id}"
+  }
+}
+
+resource "aws_autoscaling_policy" "cluster_autoscale_policy" {
+  name = "${var.name}-autoscale-policy"
+  autoscaling_group_name = "${aws_autoscaling_group.cluster_autoscale_group.name}"
+  adjustment_type = "ChangeInCapacity"
+  policy_type = "TargetTrackingScaling"
+  target_tracking_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ASGAverageCPUUtilization"
+    }
+
+    target_value = 60.0
   }
 }
 
@@ -90,16 +139,3 @@ resource "aws_iam_instance_profile" "ecs_instance_profile" {
   name = "ecs_instance_profile"
   role = "${aws_iam_role.instance_role.name}"
 }
-
-
-# resource "aws_launch_configuration" "api_config" {
-#   image_id = "${data.aws_ami.ubuntu.id}"
-#   name_prefix   = "terraform-lc-example-"
-#   instance_type = "t3.nano"
-#   user_data = "${data.template_file.user_data.rendered}"
-  
-#   lifecycle {
-#     create_before_destroy = true
-#   }
-# }
-

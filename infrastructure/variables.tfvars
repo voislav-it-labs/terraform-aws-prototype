@@ -1,2 +1,2 @@
 name = "terraform-prototype"
-instance_keypair = "yes"
+region = "eu-central-1"
