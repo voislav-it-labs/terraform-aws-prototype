@@ -1,0 +1,20 @@
+[
+    {
+        "name": "terraform-learning-api-container",
+        "portMappings": [
+            {
+                "hostPort": 80,
+                "protocol": "tcp",
+                "containerPort": 80
+            }
+        ],
+        "environment": [
+            {
+                "name": "ASPNETCORE_ENVIRONMENT",
+                "value": "Production"
+            }
+        ],
+        "memory": 128,
+        "image": "773243651801.dkr.ecr.eu-central-1.amazonaws.com/terraform-learning:latest"
+    }
+]

@@ -1,0 +1,1 @@
+docker run -p 5000:80 --name terraform-prototype-api terraform-prototype-api
